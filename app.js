@@ -1,12 +1,15 @@
 const express = require("express");
+const fs = require("fs");
 const aws = require("aws-sdk");
+const multer = require("multer");
+const path = require("path");
 
 require("dotenv").config();
 
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 9000;
 
 aws.config.update({
   accessKeyId: process.env.AWSACCESSKEY,
@@ -15,15 +18,14 @@ aws.config.update({
 });
 
 const textract = new aws.Textract();
+const s3 = new aws.S3();
+
+const upload = multer({ dest: "src/uploads" }).single("file");
 
 app.post("/analyse", async (req, res) => {
   const { bucketName, objectKey } = req.body;
 
   try {
-    // const bucketName = "carcassv0.1";
-    // const objectKey =
-    //   "ng-government-gazette-dated-2020-01-14-no-6/ng-government-gazette-dated-2020-01-14-no-6.pdf";
-
     const params = {
       DocumentLocation: {
         S3Object: {
@@ -49,11 +51,10 @@ app.post("/analyse", async (req, res) => {
 app.get("/analyse/status/:JobId", async (req, res) => {
   const { JobId } = req.params;
   try {
-    var params = {
+    const params = {
       JobId,
-      // JobId:
-      //   "980955f5bba15b9705b1d6302e1fbe63566aeaa5f2d8e47e69b276772cd0f38f" /* required */,
     };
+
     textract.getDocumentTextDetection(params, function (err, data) {
       if (err) res.status(400).send({ status: false, err, stack: err.stack });
       // an error occurred
@@ -65,6 +66,33 @@ app.get("/analyse/status/:JobId", async (req, res) => {
       message: "Something went wrong while processing your information",
     });
   }
+});
+
+app.post("/upload", upload, async (req, res) => {
+  const file = req.file.filename;
+
+  fs.readFile(`src/uploads/${file}`, (error, data) => {
+    if (error)
+      return res
+        .status(400)
+        .send({ status: false, message: "Error reading file" });
+
+    const params = {
+      Bucket: "carcassv0.1", // pass your bucket name
+      Key: "myFile0.csv", // file will be saved as testBucket/contacts.csv
+      Body: JSON.stringify(data, null, 2),
+    };
+    s3.upload(params, function (err, data) {
+      if (err) res.status(400).send({ status: false, err, stack: err.stack });
+      // an error occurred
+      else res.status(200).send({ status: true, data }); // successful response
+    });
+  });
+
+  const filepath = `/src/uploads/${file}`;
+
+  const route = path.join(__dirname, filepath);
+  fs.unlinkSync(route);
 });
 
 app.listen(PORT, () => console.log(`App is listening on port ${PORT}`));
