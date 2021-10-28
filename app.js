@@ -69,6 +69,7 @@ app.get("/analyse/status/:JobId", async (req, res) => {
 });
 
 app.post("/upload", upload, async (req, res) => {
+  originalname = req.file.originalname;
   const file = req.file.filename;
 
   fs.readFile(`src/uploads/${file}`, (error, data) => {
@@ -79,7 +80,7 @@ app.post("/upload", upload, async (req, res) => {
 
     const params = {
       Bucket: "carcassv0.1", // pass your bucket name
-      Key: "myFile0.csv", // file will be saved as testBucket/contacts.csv
+      Key: originalname, // file will be saved as testBucket/contacts.csv
       Body: JSON.stringify(data, null, 2),
     };
     s3.upload(params, function (err, data) {
