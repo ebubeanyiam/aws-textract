@@ -69,7 +69,7 @@ app.get("/analyse/status/:JobId", async (req, res) => {
 });
 
 app.post("/upload", upload, async (req, res) => {
-  originalname = req.file.originalname;
+  const originalname = req.file.originalname;
   const file = req.file.filename;
 
   fs.readFile(`src/uploads/${file}`, (error, data) => {
