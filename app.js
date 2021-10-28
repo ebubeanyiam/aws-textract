@@ -3,11 +3,13 @@ const fs = require("fs");
 const aws = require("aws-sdk");
 const multer = require("multer");
 const path = require("path");
+const cors = require("cors");
 
 require("dotenv").config();
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 const PORT = process.env.PORT || 9000;
 
