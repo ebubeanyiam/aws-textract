@@ -35,6 +35,10 @@ app.post("/analyse", async (req, res) => {
           Name: objectKey,
         },
       },
+      NotificationChannel: {
+        SNSTopicArn: process.env.SNSTOPICARN,
+        RoleArn: process.env.ROLEARN,
+      },
     };
 
     textract.startDocumentTextDetection(params, function (err, data) {
@@ -58,9 +62,52 @@ app.get("/analyse/status/:JobId", async (req, res) => {
     };
 
     textract.getDocumentTextDetection(params, function (err, data) {
-      if (err) res.status(400).send({ status: false, err, stack: err.stack });
-      // an error occurred
-      else res.status(200).send({ status: true, data }); // successful response
+      if (err)
+        return res.status(400).send({ status: false, err, stack: err.stack }); // an error occurred
+
+      if (data && data.JobStatus === "IN_PROGRESS")
+        return res.status(102).send({ status: true, data });
+
+      if (data && data.JobStatus === "SUCCEEDED") {
+        const responseArray = data.Blocks;
+
+        const lines = responseArray.filter((item) => {
+          return item.BlockType === "LINE";
+        });
+
+        let pageText = "";
+
+        lines.map((line) => {
+          pageText += line.Text + "\n";
+        });
+
+        fs.writeFileSync("doc.txt", pageText);
+
+        const timestamp = Date.now();
+
+        fs.readFile(`doc.txt`, (error, data) => {
+          if (error)
+            return res
+              .status(400)
+              .send({ status: false, message: "Error reading file" });
+
+          const params = {
+            Bucket: "carcassv0.1", // pass your bucket name
+            Key: `${JobId}_${timestamp}`,
+            Body: JSON.stringify(data, null, 2),
+          };
+          s3.upload(params, function (err, data) {
+            if (err)
+              res.status(400).send({ status: false, err, stack: err.stack });
+            // an error occurred
+            else res.status(200).send({ status: true, data }); // successful response
+          });
+        });
+
+        // res.status(200).send({ status: true, data: pageText });
+      }
+
+      res.status(200).send({ status: true, data });
     });
   } catch (error) {
     res.status(500).send({
@@ -82,7 +129,7 @@ app.post("/upload", upload, async (req, res) => {
 
     const params = {
       Bucket: "carcassv0.1", // pass your bucket name
-      Key: originalname, // file will be saved as testBucket/contacts.csv
+      Key: originalname,
       Body: JSON.stringify(data, null, 2),
     };
     s3.upload(params, function (err, data) {
